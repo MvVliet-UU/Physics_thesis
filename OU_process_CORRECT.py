@@ -29,11 +29,12 @@ mu_data = np.transpose(data)
 # We substract the mean spectrum from the data
 mu = mu_data[1]
 
-# Parameters for the Ornstein-Uhlenbeck process
-theta = 1
-sigma = 1
-rho = 0.999
+# Parameters for the Ornstein-Uhlenbeck process, decreasing theta and increasing N should give a OU process that moves more smoothly. 
+theta = 0.2
+sigma = 0.05
+rho = 0.998
 b = -np.log(rho)
+
 
 T = 10.0
 N = 100
@@ -73,8 +74,8 @@ matrix = np.transpose(matrix)
 
 w = 13
 
-lambda_A = 402
-lambda_B = 398
+lambda_A = 430
+lambda_B = 370
 
 # All the different wavelengths over which the spectrum was measured.
 lambdas = mu_data[0]
@@ -124,14 +125,14 @@ Omega = (Tot_Power_A[0] + Tot_Power_B[0])/2
 # The fourth plot is the same as the third plot, but animated to create the effect of time passing by.
 
 # 1 ----------------------------------------------------------------------------------------------------------
-# fig = plt.figure()
-# camera = Camera(fig)
-# for i in range(N):
-#     plt.plot(lambda_nm, matrix[i], c = 'blue', label = "$I(\lambda, t)$")
-#     plt.ylim(0, 1.5)
-#     camera.snap()
-# animation = camera.animate(interval = 400)
-# animation.save('C:/Users/martv/Documents/Nat_scriptie/OU_process/OU_process.gif')
+fig = plt.figure()
+camera = Camera(fig)
+for i in range(N):
+    plt.plot(lambda_nm, matrix[i], c = 'blue', label = "$I(\lambda, t)$")
+    plt.ylim(0, 2.5)
+    camera.snap()
+animation = camera.animate(interval = 400)
+animation.save('C:/Users/martv/Documents/Nat_scriptie/OU_process/OU_process.gif')
 
 
 # 2 ----------------------------------------------------------------------------------------------------------
@@ -144,11 +145,12 @@ Omega = (Tot_Power_A[0] + Tot_Power_B[0])/2
 
 
 # 3 ----------------------------------------------------------------------------------------------------------
-# plt.figure()
-# plt.plot(t, Tot_Power_A, c = 'red', label = "$P_A$")
-# plt.plot(t, Tot_Power_B, c = 'orange', label = "$P_B$")
-# plt.plot(t, Omega*np.ones(len(t)),  '--', c = 'blue', label = "$\Omega$")
-# plt.legend()
+plt.figure()
+plt.plot(t, Tot_Power_A, c = 'red', label = "$P_A$")
+plt.plot(t, Tot_Power_B, c = 'orange', label = "$P_B$")
+plt.plot(t, Omega*np.ones(len(t)),  '--', c = 'blue', label = "$\Omega$")
+plt.xlabel('time')
+plt.legend()
 
 
 # 4 ----------------------------------------------------------------------------------------------------------
