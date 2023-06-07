@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.integrate as integrate
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import seaborn
 import multiprocessing
 import time
@@ -55,37 +56,36 @@ mu_gaussian = extra_mu_1.tolist() + mu + extra_mu_2.tolist()
     # rho: value between 0 and 1, the correlation coefficient between two points on the spectrum. Best and most realistic results between 0.9 and 1.
 
 s = 0.18
-theta = 1
+theta = 0.2
 n = 10
 w = 13  
-rho = 0.998
-b = np.log(rho)
+rho = 0.99
+b_rho = np.log(rho)
 
 # We create the array that will contain the powers for every possible centre l_a of the absorption peak.
 j = 0
 powers = np.zeros(len(l_a))
+gaussians = np.zeros((len(l_a), len(l_b_gaussian)))
 for l in l_a:
     gaussian = np.zeros(len(l_a_gaussian))
     i = 0
     for x in l_b_gaussian:
         gaussian[i] = (1/(w*np.sqrt(2*np.pi))*np.exp(-(x - l)**2/(2*w**2)))
         i+=1
-        
+    # gaussians[l_a.index(l)] = gaussian
     powers[j] = np.sum(gaussian*mu_gaussian)
     j+=1
 
 
-# A function to compute the integral given in appendix A of the stated thesis, with it we can compute the variance of the power of an absorption peak (is the same for every peak centre l_a).
-def func(w, b, a):
-    grens_onder = a - 3*w
-    grens_boven = a + 3*w
-    Integral = integrate.dblquad(lambda x, y: np.exp(-(x - a)**2/(2*w**2))*np.exp(-(y - a)**2/(2*w**2))*np.exp(-b*np.abs(x - y)), grens_onder, grens_boven, lambda x: grens_onder, lambda x: grens_boven)
-    s = 1/(w**2*2*np.pi) * Integral[0]
-    return s
+# # A function to compute the integral given in appendix A of the stated thesis, with it we can compute the variance of the power of an absorption peak (is the same for every peak centre l_a).
+# def func(w, b_rho, a):
+#     grens_onder = a - 3*w
+#     grens_boven = a + 3*w
+#     Integral = integrate.dblquad(lambda x, y: np.exp(-(x - a)**2/(2*w**2))*np.exp(-(y - a)**2/(2*w**2))*np.exp(-b_rho*np.abs(x - y)), grens_onder, grens_boven, lambda x: grens_onder, lambda x: grens_boven)
+#     s = 1/(w**2*2*np.pi) * Integral[0]
+#     return s
 
-Var_PA = s**2/(2*theta)*func(w, b, 400)
-print(Var_PA)
-
+Var_PA = s**2/(theta)*np.exp(b_rho**2*w**2)*1/2*(1-erf(b_rho*w/np.sqrt(2)))
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Now we set up the variables to create the heatmap, after which the heatmap is plotted. 
@@ -120,10 +120,17 @@ noise = np.zeros(((len(l_diff)), len(l_null)))
 
 # The next for loop firstly computes the difference d in power, the correlation coefficient r for every two absorption peak centres a and b.
 # Next, it computes P_dPb, E_dPb and E_dPb_squared from which it calculates the expected internal and external fluctuations.
+correlations = []
+for d_l in l_diff:
+    Covariance = s**2/(2*theta)*(np.exp(b_rho*d_l + b_rho**2*w**2)*1/2*(1 - erf((b_rho*w-d_l/(2*w))/np.sqrt(2))) + np.exp(-b_rho*d_l + b_rho**2*w**2)*1/2*(1-erf((b_rho*w+d_l/(2*w))/np.sqrt(2))))
+    correlations.append(Covariance/Var_PA)
+
+
 for x in l_null:
     for y in l_diff:
         a = x-y/2
         b = x+y/2
+        
         
         try:
             ind_a = l_a.index(a)
@@ -136,7 +143,7 @@ for x in l_null:
             ind_b = l_a.index(find_nearest(l_a, b))
 
         d = np.abs(powers[ind_a] - powers[ind_b])
-        r = rho**np.abs(a-b)
+        r = correlations[y]
         
         P_dPb = 1/2*(1 - erf(d/(np.sqrt(2)*Var_PA)))
         E_dPb = Var_PA/(np.sqrt(2*np.pi))*np.exp(-d**2/(2*Var_PA**2))
@@ -155,9 +162,9 @@ for x in l_null:
 mu = np.array(mu)
 
 # The following three lines can compute the place that has minimal noise, which is not really useful since a lot of points in the heatmap have noise with almost the same value as the minimum.  
-# best = noise.min()
-# ind_min = np.where(noise == best)
-# ind_min = tuple([i.item() for i in ind_min])
+best = noise.min()
+ind_min = np.where(noise == best)
+ind_min = tuple([i.item() for i in ind_min])
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Now we plot the noise heatmap, called the optimization landscape
@@ -167,7 +174,7 @@ plt.figure()
 plt.title('Optimization landscape of the total noise from $n$ antenna pigments')
 # ax = seaborn.heatmap(Int_buiten)
 # ax = seaborn.heatmap(Int_binnen)
-ax = seaborn.heatmap(noise)
+ax = seaborn.heatmap(noise, norm = colors.LogNorm(vmin = 0.1, vmax = 1.2), cbar_kws = {'ticks': [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2]} )
 ax.xaxis.set_ticks(j[::50])
 ax.xaxis.set_ticklabels(l_null[::50])
 ax.set_xlabel('$\lambda_0$ (nm)')
@@ -175,13 +182,18 @@ ax.yaxis.set_ticks(i[::20])
 ax.yaxis.set_ticklabels(l_diff[::20])
 ax.set_ylabel('$\lambda_A - \lambda_B$ (nm)')
 ax.invert_yaxis()
-plt.plot(np.arange(0, len(l_a), 1), 150*mu - np.ones(len(l_a))*(min(150*mu)), c = 'green')
+ax.collections[0].colorbar.set_ticklabels([0, 0.2, 0.4, 0.6, 0.8, 1, 1.2])
+plt.plot(np.arange(0, len(l_a), 1), 150*mu - np.ones(len(l_a))*(min(150*mu)), c = 'black', linewidth = 1.5)
 plt.plot(0,s, alpha = 0, label = '$\sigma$ = {}'.format(s))
 plt.plot(0,rho, alpha = 0, label = '$r$ = {}'.format(rho))
 plt.plot(0,theta, alpha = 0, label = '$theta$ = {}'.format(theta))
 plt.plot(0,n, alpha = 0, label = 'n = {}'.format(n))
 plt.plot(0,w, alpha = 0, label = 'w = {}'.format(w))
+plt.plot(ind_min[1], ind_min[0], 'o', c = 'red')
 plt.legend()
 
+
 # An extra feature is to plot the contour lines in the heatmap, this is optional.
-plt.contour(noise)
+contour = plt.contour(noise, levels = [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
+plt.clabel(contour, levels = [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
+# levels = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2]
