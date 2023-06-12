@@ -22,21 +22,20 @@ from scipy.special import erf
     # r: value between 0 and 1, the correlation coefficient for the OU process.
     # n: integer value, the number of antenna couples.
     
-with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/NREL-full.txt') as fp:
+with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/1m Buiteveld and Kou.txt') as fp:
     data = [list(map(float, line.strip().split(' '))) for line in fp]
     
 data = np.transpose(data)
-mu = data[1]
-
-l_a = data[0].tolist()
-l_b = data[0].tolist()
+index_ninehundred = data[0].tolist().index(900)
+l_a = data[0].tolist()[:index_ninehundred]
+mu = data[1].tolist()[:index_ninehundred]
 
 powers = np.zeros((len(data[0].tolist())))
 w = 13
-s = 1
-theta = 1
-deltas = np.linspace(0,2,100).tolist()
-r = 0.998
+s = 0.2
+theta = 0.18
+deltas = np.linspace(0,0.3,100).tolist()
+r = 0.99
 b = np.log(r)
 
 # See what happens when changing the amount of antenna couples
@@ -64,14 +63,21 @@ for d in deltas:
     Int_binnen.append(n*d**2*(1- 2*P_dPb) - n*r*Var_PA**2 + 2*n*(1-r)*d*E_dPb + 2*n*r*E_dPb_squared)
     Int_buiten.append(2*n**2*d**2*P_dPb + 2*n**2*E_dPb_squared - 4*n**2*d*E_dPb )
 
+total = np.zeros(len(Int_buiten)-1)
+for i in range(0, len(Int_buiten) - 1):
+    total[i] = Int_buiten[i] + Int_binnen[i]
+
+print(deltas[total.tolist().index(min(total))])
+
 plt.figure()
 plt.plot(deltas, Int_buiten, label = 'o-t-w')
 plt.plot(deltas, Int_binnen, label = 'i-t-w')
 plt.plot(0,s, alpha = 0, label = '$\sigma$ = {}'.format(s))
 plt.plot(0,r, alpha = 0, label = '$r$ = {}'.format(r))
-plt.plot(0,theta, alpha = 0, label = '$theta$ = {}'.format(theta))
+plt.plot(0,theta, alpha = 0, label = 't = {}'.format(theta))
 plt.plot(0,n, alpha = 0, label = 'n = {}'.format(n))
 plt.plot(0,w, alpha = 0, label = 'w = {}'.format(w))
 plt.xlabel('$\Delta$-bar')
 plt.ylabel('Noise')
+plt.ylim(0,1)
 plt.legend()
