@@ -21,17 +21,23 @@ from celluloid import Camera
     
 
 # Opening the map with the spectral data taken from Arp et. al
-with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/NREL-visible.txt') as fp:
-    data = [list(map(float, line.strip().split(' '))) for line in fp]
-
-mu_data = np.transpose(data)
+# with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/NREL-visible.txt') as fp:
+# with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/1m Buiteveld and Kou.txt') as fp:
+# with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/10cm Buiteveld and Kou.txt') as fp:
+with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/NREL_ASTM_Direct_Circum.txt') as fp:
+    data = [list(map(float, line.strip().split('\t'))) for line in fp]
+    
+data = np.transpose(data)
+index_ninehundred = data[0].tolist().index(1100)
 
 # We substract the mean spectrum from the data
-mu = mu_data[1]
+l_a = data[0].tolist()[:index_ninehundred]
+mu = data[1].tolist()[:index_ninehundred]
+
 
 # Parameters for the Ornstein-Uhlenbeck process, decreasing theta and increasing N should give a OU process that moves more smoothly. 
 theta = 0.2
-sigma = 0.05
+sigma = 0.18
 rho = 0.998
 b = -np.log(rho)
 
@@ -42,7 +48,7 @@ dt = T / N
 
 # Now we create the matrix that has the spectrum at different timesteps in the rows.
 # The rows are the different spectra at different times, and every column represents one wavelength.
-points = len(data)
+points = len(l_a)
 matrix = np.zeros((points, N))
 
 # We create the OU process for one point on the line,
@@ -74,11 +80,13 @@ matrix = np.transpose(matrix)
 
 w = 13
 
-lambda_A = 430
-lambda_B = 370
+lambda_A = 360
+lambda_B = 450
+lambda_C = 657
+lambda_D = 699
 
 # All the different wavelengths over which the spectrum was measured.
-lambdas = mu_data[0]
+lambdas = l_a
 
 A_gaussian = np.zeros(points)
 B_gaussian = np.zeros(points)
@@ -90,6 +98,16 @@ for x in lambdas:
     B_gaussian[i] = (1/(w*np.sqrt(2*np.pi))*np.exp(-(x - lambda_B)**2/(2*w**2)))
     i += 1
 
+C_gaussian = np.zeros(points)
+D_gaussian = np.zeros(points)
+i = 0
+
+# Create the two absorption peaks
+for x in lambdas:
+    C_gaussian[i] = (1/(w*np.sqrt(2*np.pi))*np.exp(-(x - lambda_C)**2/(2*w**2)))
+    D_gaussian[i] = (1/(w*np.sqrt(2*np.pi))*np.exp(-(x - lambda_D)**2/(2*w**2)))
+    i += 1
+    
 Power_A = np.zeros(points)
 Power_B = np.zeros(points)
 Tot_Power_A = []
@@ -112,7 +130,7 @@ for t in range(0, N):
     Tot_Power_A.append(Total_A)
     Tot_Power_B.append(Total_B)
 
-lambda_nm = mu_data[0]
+lambda_nm = l_a
 t = np.linspace(0,T,N)
 
 # Compute the wanted photon rate at the plant.
@@ -125,40 +143,49 @@ Omega = (Tot_Power_A[0] + Tot_Power_B[0])/2
 # The fourth plot is the same as the third plot, but animated to create the effect of time passing by.
 
 # 1 ----------------------------------------------------------------------------------------------------------
-fig = plt.figure()
-camera = Camera(fig)
-for i in range(N):
-    plt.plot(lambda_nm, matrix[i], c = 'blue', label = "$I(\lambda, t)$")
-    plt.ylim(0, 2.5)
-    camera.snap()
-animation = camera.animate(interval = 400)
-animation.save('C:/Users/martv/Documents/Nat_scriptie/OU_process/OU_process.gif')
+# fig = plt.figure()
+# camera = Camera(fig)
+# for i in range(N):
+#     plt.plot(lambda_nm, matrix[i], c = 'grey', linewidth = 2, label = "$I(\lambda, t)$")
+#     # plt.plot(lambda_nm, 3* A_gaussian, c = 'red', label = "$P_A$")
+#     # plt.plot(lambda_nm, 10* B_gaussian, c = 'orange', label = "$P_B$")
+#     plt.xlabel('$\lambda$ (nm)')
+#     plt.ylabel('Intensity')
+#     plt.ylim(0,2.5)
+#     camera.snap()
+# animation = camera.animate(interval = 400)
+# animation.save('C:/Users/martv/Documents/Nat_scriptie/OU_process/OU_process.gif')
 
 
 # 2 ----------------------------------------------------------------------------------------------------------
-# mu = mu.tolist()
 # plt.figure()
-# plt.plot(lambda_nm, mu-np.ones(len(mu))*mu[mu.index(min(mu))], c = 'black', label = "$I(\lambda, t)$")
-# plt.plot(lambda_nm, 10* A_gaussian, c = 'red', label = "$P_A$")
-# plt.plot(lambda_nm, 10* B_gaussian, c = 'orange', label = "$P_B$")
+# plt.plot(lambda_nm, mu-np.ones(len(mu))*mu[mu.index(min(mu))], c = 'grey', linewidth = 2, label = "$I(\lambda, t)$")
+# plt.plot(lambda_nm, 35* A_gaussian, c = 'blue', linewidth = 2, label = "$A$", alpha = 0.7)
+# plt.plot(np.ones(len(lambda_nm))*lambda_A, np.linspace(0,max(A_gaussian)*35, len(lambda_nm)), c = 'blue', label = '$\lambda_A$', alpha = 0.4)
+# plt.plot(lambda_nm, 35* B_gaussian, c = 'green', linewidth = 2, label = "$B$", alpha = 0.5)
+# plt.plot(lambda_nm, 35* C_gaussian, c = 'orange', linewidth = 2, label = "$C$", alpha = 0.5)
+# plt.plot(lambda_nm, 35* D_gaussian, c = 'red', linewidth = 2, label = "$D$", alpha = 0.5)
+# plt.ylim(0.007, 1.5)
+# plt.xlabel("$\lambda$ (nm)")
+# plt.ylabel("Intensity")
 # plt.legend()
 
 
 # 3 ----------------------------------------------------------------------------------------------------------
-plt.figure()
-plt.plot(t, Tot_Power_A, c = 'red', label = "$P_A$")
-plt.plot(t, Tot_Power_B, c = 'orange', label = "$P_B$")
-plt.plot(t, Omega*np.ones(len(t)),  '--', c = 'blue', label = "$\Omega$")
-plt.xlabel('time')
-plt.legend()
+# plt.figure()
+# plt.plot(t, Tot_Power_A, c = 'red', label = "$P_A$")
+# plt.plot(t, Tot_Power_B, c = 'orange', label = "$P_B$")
+# plt.plot(t, Omega*np.ones(len(t)),  '--', c = 'blue', label = "$\Omega$")
+# plt.xlabel('time')
+# plt.legend()
 
 
 # 4 ----------------------------------------------------------------------------------------------------------
 # fig = plt.figure()
 # camera = Camera(fig)
 # for i in range(N):
-#     plt.plot(t[:i], Tot_Power_A[:i], c = 'red', label = "$P_A$")
-#     plt.plot(t[:i], Tot_Power_B[:i], c = 'orange', label = "$P_B$")
+#     plt.plot(t[:i], Tot_Power_A[:i], c = 'orange', label = "$P_A$")
+#     plt.plot(t[:i], Tot_Power_B[:i], c = 'red', label = "$P_B$")
 #     plt.plot(t, Omega*np.ones(len(t)),  '--', c = 'blue', label = "$\Omega$")
 #     camera.snap()
 # animation = camera.animate(interval = 400)
