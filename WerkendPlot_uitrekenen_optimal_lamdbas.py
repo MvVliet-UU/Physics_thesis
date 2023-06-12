@@ -19,12 +19,18 @@ from scipy.special import erf
     # data: list containing the spectral data used by Arp et. al
 
 # Open the file with the spectral data and substract mu, the mean spectrum around which we have created the OU process.
-with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/NREL-visible.txt') as fp:
-    data = [list(map(float, line.strip().split(' '))) for line in fp]
-    
+# with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/NREL-visible.txt') as fp:
+# with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/10cm Buiteveld and Kou.txt') as fp:
+#     data = [list(map(float, line.strip().split(' '))) for line in fp]
+  
+# with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/5m Buiteveld and Kou.txt') as fp:
+with open('C:/Users/martv/Documents/Nat_scriptie/qntenna-master/qntenna-master/spectra/raw_spectra/NREL_ASTM_Direct_Circum.txt') as fp:
+    data = [list(map(float, line.strip().split('\t'))) for line in fp]
+
 data = np.transpose(data)
-l_a = data[0].tolist()
-mu = data[1].tolist()
+index_ninehundred = data[0].tolist().index(701)
+l_a = data[0].tolist()[:index_ninehundred]
+mu = data[1].tolist()[:index_ninehundred]
 
 # This step is a bit tricky and is specificly used for the NREL-visible spectrum.
 # It removes all the data points that sit between two points with wavelength 1 nm apart.
@@ -58,7 +64,7 @@ mu_gaussian = extra_mu_1.tolist() + mu + extra_mu_2.tolist()
 s = 0.18
 theta = 0.2
 n = 10
-w = 13  
+w = 13
 rho = 0.99
 b_rho = np.log(rho)
 
@@ -96,7 +102,71 @@ Var_PA = s**2/(theta)*np.exp(b_rho**2*w**2)*1/2*(1-erf(b_rho*w/np.sqrt(2)))
     # l_diff: array with values in nanometer. It contains the peak seperation, the y-axis of the heatmap, 
     # l_null: array, containing the adjusted spectrum.
     
-    
+optimal_power = 0.1161616
+u = 0
+optimal_powers = []
+for l in l_a:
+    optimal_diff = 10000
+    for v in np.arange(0, 71, 1):
+        if u - v < 0:
+            powerdiff = np.abs(powers[0] - powers[u + v])
+            if np.abs(powerdiff - optimal_power) < optimal_diff:
+                optimal_diff = np.abs(powerdiff - optimal_power)
+                ind_v = v
+            else:
+                continue
+        if u - v > 0 and u + v < len(powers) - 1:
+            powerdiff = np.abs(powers[u - v] - powers[u + v])
+            if np.abs(powerdiff - optimal_power) < optimal_diff:
+                optimal_diff = np.abs(powerdiff - optimal_power)
+                ind_v = v
+            else:
+                continue
+        if u + v > len(powers) - 1:
+            powerdiff = np.abs(powers[u - v] - powers[len(powers)-1])
+            if np.abs(powerdiff - optimal_power) < optimal_diff:
+                optimal_diff = np.abs(powerdiff - optimal_power)
+                ind_v = v
+            else:
+                continue
+        
+    u+=1
+    optimal_powers.append(ind_v)
+
+optimal_powers = [2*z for z in optimal_powers]
+
+p = 0
+worst_powers = []
+for l in l_a:
+    optimal_power = 1000
+    for q in np.arange(1, 71, 1):
+        if p - q < 0:
+            powerdiff = np.abs(powers[0] - powers[p + q])
+            if powerdiff < optimal_power:
+                optimal_power = powerdiff
+                ind_q = q
+            else:
+                continue
+        if p - q > 0 and p + q < len(powers) - 1:
+            powerdiff = np.abs(powers[p - q] - powers[p + q])
+            if powerdiff < optimal_power:
+                optimal_power = powerdiff
+                ind_q = q
+            else:
+                continue
+        if p + q > len(powers) - 1:
+            powerdiff = np.abs(powers[p - q] - powers[len(powers)-1])
+            if powerdiff < optimal_power:
+                optimal_power = powerdiff
+                ind_q = q
+            else:
+                continue
+        
+    p+=1
+    worst_powers.append(ind_q)
+
+worst_powers = [2*z for z in worst_powers]
+
     
     
 l_diff = np.arange(0, 141, 1).tolist()
@@ -161,10 +231,15 @@ for x in l_null:
 
 mu = np.array(mu)
 
-# The following three lines can compute the place that has minimal noise, which is not really useful since a lot of points in the heatmap have noise with almost the same value as the minimum.  
+# The following three lines can compute the two absorption peaks in the red and blue part that have minimal noise, which is not really useful since a lot of points in the heatmap have noise with almost the same value as the minimum.  
 best = noise.min()
 ind_min = np.where(noise == best)
 ind_min = tuple([i.item() for i in ind_min])
+
+second_min_noise = noise[:, 241:]
+best_2 = second_min_noise.min()
+ind_min_2 = np.where(noise == best_2)
+ind_min_2 = tuple([i.item() for i in ind_min_2])
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Now we plot the noise heatmap, called the optimization landscape
@@ -175,6 +250,8 @@ plt.title('Optimization landscape of the total noise from $n$ antenna pigments')
 # ax = seaborn.heatmap(Int_buiten)
 # ax = seaborn.heatmap(Int_binnen)
 ax = seaborn.heatmap(noise, norm = colors.LogNorm(vmin = 0.1, vmax = 1.2), cbar_kws = {'ticks': [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2]} )
+# ax = seaborn.heatmap(noise, norm = colors.LogNorm(vmin = 0.55, vmax = 4), cbar_kws = {'ticks': [0, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4]} )
+
 ax.xaxis.set_ticks(j[::50])
 ax.xaxis.set_ticklabels(l_null[::50])
 ax.set_xlabel('$\lambda_0$ (nm)')
@@ -183,17 +260,27 @@ ax.yaxis.set_ticklabels(l_diff[::20])
 ax.set_ylabel('$\lambda_A - \lambda_B$ (nm)')
 ax.invert_yaxis()
 ax.collections[0].colorbar.set_ticklabels([0, 0.2, 0.4, 0.6, 0.8, 1, 1.2])
-plt.plot(np.arange(0, len(l_a), 1), 150*mu - np.ones(len(l_a))*(min(150*mu)), c = 'black', linewidth = 1.5)
+# ax.collections[0].colorbar.set_ticklabels([0, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4])
+plt.plot(np.arange(0, len(l_a), 1), 85*mu - np.ones(len(l_a))*(min(85*mu)), c = 'black', linewidth = 1.5)
 plt.plot(0,s, alpha = 0, label = '$\sigma$ = {}'.format(s))
 plt.plot(0,rho, alpha = 0, label = '$r$ = {}'.format(rho))
 plt.plot(0,theta, alpha = 0, label = '$theta$ = {}'.format(theta))
 plt.plot(0,n, alpha = 0, label = 'n = {}'.format(n))
 plt.plot(0,w, alpha = 0, label = 'w = {}'.format(w))
-plt.plot(ind_min[1], ind_min[0], 'o', c = 'red')
+# plt.plot(np.arange(0, len(l_a), 1), optimal_powers, '.' , c = 'blue', linewidth = 2)
+# plt.plot(np.arange(0, len(l_a), 1), worst_powers, '.' , c = 'brown', linewidth = 2)
+# plt.plot(np.arange(0, len(l_a), 1), 85*powers, c = 'magenta', linewidth = 2)
 plt.legend()
 
 
 # An extra feature is to plot the contour lines in the heatmap, this is optional.
-contour = plt.contour(noise, levels = [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
-plt.clabel(contour, levels = [0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
-# levels = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2]
+contour = plt.contour(noise, levels = [0, 0.1, 0.15, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
+plt.clabel(contour, levels = [0, 0.1, 0.15, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2])
+# contour = plt.contour(noise, levels = [0, 0.6, 0.75, 1, 1.25, 1.5, 2, 2.5, 3])
+# plt.clabel(contour, levels = [0, 0.6, 0.75, 1, 1.25, 1.5, 2, 2.5, 3])
+plt.plot(ind_min[1], ind_min[0], 'o', c = 'red')
+plt.plot(ind_min_2[1], ind_min_2[0], 'o', c = 'red')
+
+# The first number is the optimal wavelength the different.
+# Check in the l_a list the wavelength that corresponds with the second number of the printed indices. 
+print(ind_min, ind_min_2)
